@@ -1,0 +1,69 @@
+This Zero-Knowledge Proof (ZKP) system in Golang is designed to address a critical need in regulated industries: **Privacy-Preserving ML Model Audit for Regulatory Compliance**.
+
+Traditional audits require companies to disclose sensitive training data and proprietary model internals. This ZKP system allows a **Company (Prover)** to attest to an **Auditor/Regulator (Verifier)** that its Machine Learning model and training practices comply with specific ethical, fairness, and performance guidelines, *without revealing the underlying sensitive data or the precise model parameters*.
+
+The system employs a custom ZKP protocol built upon elliptic curve cryptography, Pedersen commitments, Schnorr-like proofs of knowledge, and a simplified bitwise decomposition technique for range proofs. This approach demonstrates the core principles of ZKP while avoiding direct duplication of complex, production-grade ZKP schemes (like Groth16 or Plonk).
+
+---
+
+## Outline and Function Summary
+
+```golang
+// Package zkpmachinelearning provides a Zero-Knowledge Proof system for auditing
+// machine learning model compliance without revealing sensitive data or model internals.
+//
+// The system allows a "Company" (Prover) to attest to an "Auditor/Regulator" (Verifier)
+// about specific properties of their ML training dataset and model, such as:
+//   - Dataset Diversity: Prove that certain demographic groups are adequately represented.
+//   - Bounded Model Performance: Prove model accuracy is within a compliant range.
+//   - Fairness Metric Compliance: Prove a fairness metric (e.g., Demographic Parity) is within bounds.
+//   - Non-Discriminatory Feature Usage: Prove a sensitive feature's influence is negligible.
+//   - Model Version Integrity: Prove the deployed model matches an audited version.
+//
+// This is achieved using a custom ZKP protocol based on Pedersen commitments,
+// Schnorr-like proofs of knowledge, and simplified range proofs via bitwise decomposition.
+//
+// Outline:
+// I. Primitives: Elliptic Curve Operations & Cryptographic Utilities
+// II. Public Parameters: Setup and Global Configuration
+// III. Prover (Company) Logic: Data Preparation, Commitment Generation, Proof Construction
+// IV. Verifier (Auditor) Logic: Proof Verification
+// V. Data Structures: Proofs, Commitments, Secrets
+//
+// Function Summary (37 functions/types):
+//
+// I. Primitives: Elliptic Curve Operations & Cryptographic Utilities
+// ------------------------------------------------------------------
+// 1.  Scalar: Type alias for big.Int to represent field elements.
+// 2.  Point: Struct wrapping elliptic.Point to represent curve points, adds methods.
+// 3.  newPoint(x, y *big.Int): Creates a new Point from coordinates.
+// 4.  NewScalar(val *big.Int): Creates a new Scalar.
+// 5.  GenerateRandomScalar(curve elliptic.Curve): Generates a cryptographically secure random scalar.
+// 6.  ScalarAdd(a, b Scalar, curve elliptic.Curve): Adds two scalars modulo curve order.
+// 7.  ScalarMul(a, b Scalar, curve elliptic.Curve): Multiplies two scalars modulo curve order.
+// 8.  ScalarSub(a, b Scalar, curve elliptic.Curve): Subtracts two scalars modulo curve order.
+// 9.  ScalarNeg(s Scalar, curve elliptic.Curve): Negates a scalar modulo curve order.
+// 10. PointAdd(p1, p2 Point, curve elliptic.Curve): Adds two curve points.
+// 11. PointScalarMul(p Point, s Scalar, curve elliptic.Curve): Multiplies a point by a scalar.
+// 12. NewGeneratorPair(curve elliptic.Curve): Initializes and returns two distinct elliptic curve generators (G, H).
+// 13. HashToScalar(data []byte, curve elliptic.Curve): Hashes arbitrary data to a scalar (Fiat-Shamir challenge).
+// 14. PedersenCommitment(value Scalar, randomness Scalar, G, H Point, curve elliptic.Curve): Computes value*G + randomness*H.
+// 15. VerifyPedersenCommitment(C Point, value Scalar, randomness Scalar, G, H Point, curve elliptic.Curve): Checks C == value*G + randomness*H. (Helper, not strictly ZKP but for internal checks)
+//
+// II. Public Parameters: Setup and Global Configuration
+// -----------------------------------------------------
+// 16. PublicParams: Struct holding global public parameters (curve, G, H, N_min_per_group, MinM, MaxM, MinDPD, MaxDPD, MaxInfluence, ExpectedModelHash).
+// 17. Setup(curve elliptic.Curve, nMin int, minPerf, maxPerf float64, minDPD, maxDPD float64, maxInf float64, modelHash string): Initializes the elliptic curve and generates PublicParams with specific audit criteria.
+//
+// III. Prover (Company) Logic: Data Preparation, Commitment Generation, Proof Construction
+// ---------------------------------------------------------------------------------------
+// 18. ProverConfig: Struct holding prover's private data (dataset_group_counts, model_performance, fairness_metric_DPD, feature_weight_sensitive, model_id_hash).
+// 19. ChallengeSet: Struct to hold all challenges derived from commitments for various sub-proofs.
+// 20. CommitmentSet: Struct to hold all commitments generated by the prover across all sub-proofs.
+// 21. Proof: Struct encapsulating all commitments and responses for the entire audit.
+// 22. GenerateCommitments(proverCfg ProverConfig, pp *PublicParams): Creates initial Pedersen commitments for all secrets across all proof statements.
+// 23. GenerateChallenge(commitments CommitmentSet, pp *PublicParams): Computes a Fiat-Shamir challenge by hashing all commitments.
+// 24. ProverGenerateProof(proverCfg ProverConfig, pp *PublicParams): Main function to orchestrate proof generation, combining all sub-proofs.
+// 25. proveKnowledge(secret Scalar, randomness Scalar, commitment Point, challenge Scalar, G, H Point, curve elliptic.Curve): Generates a Schnorr-like Proof of Knowledge for a committed secret. (Basic PoK_DL)
+// 26. proveNonNegative(val Scalar, randomness Scalar, commitment Point, challenge Scalar, G, H Point, curve elliptic.Curve): Generates a simplified range proof for `val >= 0` using bit decomposition.
+// 27. proveDataDiversity(actual_count Scalar, r_count Scalar,
